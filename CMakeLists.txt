@@ -11,13 +11,11 @@ set(SOURCE_FILES
     main.cpp
     driver.cpp
     cli.cpp
-    dot11sniff.cpp
     )
 
 set(HEADER_FILES
     driver.hpp
     cli.hpp
-    dot11sniff.hpp
     )
 
 add_executable(wireless_test ${SOURCE_FILES} ${HEADER_FILES})

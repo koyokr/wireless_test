@@ -1,7 +1,6 @@
 #ifndef CLI_HPP
 #define CLI_HPP
 
-#include <iostream>
 #include <string>
 #include <vector>
 

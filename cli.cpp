@@ -5,21 +5,18 @@
 #include "cli.hpp"
 
 namespace cli {
-
-namespace {
-void ClearCurEnd() { std::cout << "\E[0J"; }
-void ClearCurBeg() { std::cout << "\E[1J"; }
-void ClearBegEnd() { std::cout << "\E[2J"; }
-void MoveCurBeg() { std::cout << "\E[f"; }
-
-void Clear() { ClearCurBeg(); MoveCurBeg(); }
-}
+static void ClearCurEnd() { std::cout << "\E[0J"; }
+static void ClearCurBeg() { std::cout << "\E[1J"; }
+static void ClearBegEnd() { std::cout << "\E[2J"; }
+static void MoveCurBeg() { std::cout << "\E[f"; }
 
 void NextScreen() {
     ClearBegEnd();
     MoveCurBeg();
     std::cout << std::flush;
 }
+
+static void Clear() { ClearCurBeg(); MoveCurBeg(); }
 
 void Update(const std::string& msg) {
     Clear();
