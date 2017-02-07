@@ -31,24 +31,25 @@ struct Dot11Info {
 };
 
 namespace {
-    std::mutex g_mutex;
+std::mutex g_mutex;
 }
 
 void PrintInfo(const std::map<std::string, Dot11Info>& info_map,
                const std::deque<Dot11Info>& info_deque,
-               const std::atomic<bool>& stop) {
+               std::atomic<bool>& stop) {
     using namespace std::chrono_literals;
     
     std::stringstream msg;
-    const std::string str{ "  BSSID            "
-                           "  PWR"
-                           "  Beacons"
-                           "  CH"
-                           "  ESSID\n" };
+    const std::string name{ "  BSSID            "
+                            "  PWR"
+                            "  Beacons"
+                            "  CH"
+                            "  ESSID\n" };
     
+    cli::NextScreen();
     while (!stop) {
         msg.str(std::string());
-        msg << str;
+        msg << name;
         
         std::this_thread::sleep_for(200ms);
         {
@@ -66,7 +67,7 @@ void PrintInfo(const std::map<std::string, Dot11Info>& info_map,
     }
 }
 
-// change -> true
+//     change -> true
 // not change -> false
 bool UpdateInfo(std::map<std::string, Dot11Info>& info_map,
                 std::deque<Dot11Info>& info_deque,
@@ -76,7 +77,6 @@ bool UpdateInfo(std::map<std::string, Dot11Info>& info_map,
         auto freq = tap.channel_freq();
         auto&& ssid = mgmt.ssid();
         
-        std::lock_guard<std::mutex> lock{ g_mutex };
         info.bssid = mgmt.addr2().to_string();
         info.beacons = info.beacons.empty() ?
                        std::to_string(1) : std::to_string(std::stoi(info.beacons) + 1);
@@ -91,6 +91,7 @@ bool UpdateInfo(std::map<std::string, Dot11Info>& info_map,
         break;
     case Tins::Dot11::BEACON:
         try {
+            std::lock_guard<std::mutex> lock{ g_mutex };
             init_info(info_map[mgmt.addr2().to_string()]);
         }
         catch (Tins::option_not_found&) {
@@ -105,24 +106,21 @@ bool UpdateInfo(std::map<std::string, Dot11Info>& info_map,
 }
 
 void ReceiveInfo(const std::string interface,
-                 const std::atomic<bool>& stop) {
+                 std::atomic<bool>& stop) {
     using namespace std::chrono_literals;
+    
     std::map<std::string, Dot11Info> info_map;
     std::deque<Dot11Info> info_deque;
     
-    Tins::SnifferConfiguration config;
-    config.set_promisc_mode(true);
-    Tins::Sniffer sniffer{ interface, config };
-    
-    cli::NextScreen();
     std::thread print_thread{ PrintInfo,
                               std::ref(info_map),
                               std::ref(info_deque),
                               std::ref(stop) };
     
+    Tins::Sniffer sniffer{ interface };
     while (!stop) {
         sniffer.sniff_loop([&info_map, &info_deque](Tins::PDU& pdu) {
-            auto tap = pdu.rfind_pdu<Tins::RadioTap>();
+            auto& tap = pdu.rfind_pdu<Tins::RadioTap>();
             return !UpdateInfo(info_map,
                                info_deque,
                                tap,
