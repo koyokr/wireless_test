@@ -11,9 +11,9 @@
 #include <tins/sniffer.h>
 #include <tins/radiotap.h>
 #include <tins/dot11.h>
-#include <tins/rsn_information.h>
 
 #include "driver.hpp"
+#include "info.hpp"
 #include "cli.hpp"
 
 namespace {
@@ -28,12 +28,15 @@ static void PrintInfo(const std::map<std::string, ApInfo>& aps,
     std::stringstream msg;
     const std::string ap_row{
         "\n"
+        // left
         "  BSSID            "
+        // right
         "  PWR"
         "  Beacons  "
         "  #Data,"
         "  #/s"
         "  CH"
+        // left
         "  MB  "
         "  ENC "
         "  CIPHER"
@@ -43,8 +46,10 @@ static void PrintInfo(const std::map<std::string, ApInfo>& aps,
     };
     const std::string connection_row{
         "\n"
+        // left
         "  BSSID            "
         "  STATION          "
+        // right
         "  PWR   "
         "  Rate"
         "  Lost"
@@ -60,22 +65,21 @@ static void PrintInfo(const std::map<std::string, ApInfo>& aps,
         {
             std::lock_guard<std::mutex> lock{ g_mutex };
             for (const auto& p : aps) {
-                const auto& info = p.second;
+                const auto& ap = p.second;
                 msg << std::left
-                    << "  " << std::setw(17) << info.bssid
+                    << "  " << std::setw(17) << ap.bssid()
                     << std::right
-                    << "  " << std::setw(3)  << info.power
-                    << "  " << std::setw(7)  << info.beacons
-                    << "  " << std::setw(7)  << info.data
-                    << "  " << std::setw(4)  << info.per_second
-                    << "  " << std::setw(2)  << info.channel
+                    << "  " << std::setw(3)  << ap.power()
+                    << "  " << std::setw(7)  << ap.beacons()
+                    << "  " << std::setw(7)  << ap.data()
+                    << "  " << std::setw(4)  << ap.per_second()
+                    << "  " << std::setw(2)  << ap.channel()
                     << std::left
-                    << "  " << std::setw(4)  << info.mb
-                    << "  " << std::setw(4)  << info.enc
-                    << "  " << std::setw(6)  << info.cipher
-                    << "  " << std::setw(4)  << info.auth
-                    << std::internal
-                    << "  " << info.essid << "\n";
+                    << "  " << std::setw(4)  << ap.mb()
+                    << "  " << std::setw(4)  << ap.enc()
+                    << "  " << std::setw(6)  << ap.cipher()
+                    << "  " << std::setw(4)  << ap.auth()
+                    << "  " << ap.essid() << "\n";
             }
         }
 
@@ -84,17 +88,16 @@ static void PrintInfo(const std::map<std::string, ApInfo>& aps,
         {
             std::lock_guard<std::mutex> lock{ g_mutex };
             for (const auto& p : connections) {
-                const auto& info = p.second;
+                const auto& connection = p.second;
                 msg << std::left
-                    << "  " << std::setw(17) << info.bssid
-                    << "  " << std::setw(17) << info.station
+                    << "  " << std::setw(17) << connection.bssid()
+                    << "  " << std::setw(17) << connection.station()
                     << std::right
-                    << "  " << std::setw(3)  << info.power
-                    << "  " << std::setw(7)  << info.rate
-                    << "  " << std::setw(4)  << info.lost
-                    << "  " << std::setw(6)  << info.frames
-                    << std::internal
-                    << "  " << info.probe << "\n";
+                    << "  " << std::setw(3)  << connection.power()
+                    << "  " << std::setw(7)  << connection.rate()
+                    << "  " << std::setw(4)  << connection.lost()
+                    << "  " << std::setw(6)  << connection.frames()
+                    << "  " << connection.probe() << "\n";
             }
         }
 
@@ -104,108 +107,41 @@ static void PrintInfo(const std::map<std::string, ApInfo>& aps,
     }
 }
 
-static void ChangeApInfo(ApInfo& ap,
-                         const Tins::RadioTap& tap,
-                         const Tins::Dot11Beacon& beacon) {
-    const auto freq = tap.channel_freq();
-    const auto&& ssid = beacon.ssid();
-
-    ap.bssid = beacon.addr2().to_string();
-    ap.beacons = std::to_string(std::stoi(ap.beacons) + 1);
-    ap.power = std::to_string(tap.dbm_signal());
-    ap.channel = std::to_string(freq == 2484 ? 14 : freq % 2412 / 5 + 1);
-    ap.mb;
-    ap.enc;
-    ap.essid = ssid.empty() ? "<length:  0>" : ssid;
-
-    const auto pairwise_cyphers = beacon.rsn_information().pairwise_cyphers();
-    if (!pairwise_cyphers.empty()) {
-        switch (pairwise_cyphers[0]) {
-        case Tins::RSNInformation::WEP_40:
-            ap.cipher = "WEP";
-            break;
-        case Tins::RSNInformation::TKIP:
-            ap.cipher = "TKIP";
-            break;
-        case Tins::RSNInformation::CCMP:
-            ap.cipher = "CCMP";
-            break;
-        case Tins::RSNInformation::WEP_104:
-            ap.cipher = "WEP";
-            break;
-        default:
-            ap.cipher = "?";
-            break;
-        }
-    }
-
-    const auto akm_cyphers = beacon.rsn_information().akm_cyphers();
-    if (!akm_cyphers.empty()) {
-        switch (akm_cyphers[0]) {
-        case Tins::RSNInformation::PMKSA:
-            ap.auth = "PMKSA";
-            break;
-        case Tins::RSNInformation::PSK:
-            ap.auth = "PSK";
-            break;
-        default:
-            ap.auth = "?";
-            break;
-        }
-    }
-}
-static void ChangeApInfo(ApInfo& ap,
-                         const Tins::Dot11Data& data) {
-    ap.data = std::to_string(std::stoi(ap.data) + 1);
-    ap.per_second;
-}
-
-static void ChangeConnectionInfo(ConnectionInfo& connection,
-                                 const Tins::RadioTap& tap,
-                                 const Tins::Dot11AssocResponse& assoc_resp) {
-        connection.bssid = assoc_resp.addr2().to_string();
-        connection.station = assoc_resp.addr1().to_string();
-        connection.power = std::to_string(tap.dbm_signal());
-        connection.rate;
-        connection.lost;
-        connection.frames = std::to_string(std::stoi(connection.frames) + 1);
-        connection.probe = assoc_resp.ssid();
-}
-
 //     change -> true
 // not change -> false
 static bool UpdateInfo(std::map<std::string, ApInfo>& aps,
                        std::map<ConnectionInfoKey, ConnectionInfo>& connections,
                        const Tins::RadioTap& tap) {
-    const auto& dot = tap.rfind_pdu<Tins::Dot11>();
-    const auto type = dot.type();
+    const auto& dot11 = tap.rfind_pdu<Tins::Dot11>();
+    const auto type = dot11.type();
 
     if (Tins::Dot11::DATA == type) {
-        const auto& data = dot.rfind_pdu<Tins::Dot11Data>();
-        if (aps.find(data.addr1().to_string()) == aps.end()) {
+        const auto& data = dot11.rfind_pdu<Tins::Dot11Data>();
+        const auto key = data.addr1().to_string();
+        
+        if (aps.find(key) == aps.end()) {
             return false;
         }
         std::lock_guard<std::mutex> lock{ g_mutex };
-        ChangeApInfo(aps[data.addr1().to_string()],
-                     dot.rfind_pdu<Tins::Dot11Data>());
+        aps[key].Change(data);
     }
     else if (Tins::Dot11::MANAGEMENT == type) {
-        const auto& mgmt = dot.rfind_pdu<Tins::Dot11ManagementFrame>();
-
-        switch (dot.subtype()) {
+        switch (dot11.subtype()) {
         case Tins::Dot11::ASSOC_RESP: {
+            const auto& assoc_resp = dot11.rfind_pdu<Tins::Dot11AssocResponse>();
+            const ConnectionInfoKey key{ assoc_resp.addr2().to_string(),
+                                         assoc_resp.addr1().to_string() };
+            
             std::lock_guard<std::mutex> lock{ g_mutex };
-            ChangeConnectionInfo(connections[{ mgmt.addr2().to_string(),
-                                               mgmt.addr1().to_string() }],
-                                 tap,
-                                 mgmt.rfind_pdu<Tins::Dot11AssocResponse>());
+            connections[key].Change(assoc_resp, tap);
             break;
         }
         case Tins::Dot11::BEACON: {
+            const auto& beacon = dot11.rfind_pdu<Tins::Dot11Beacon>();
+            const auto key = beacon.addr2().to_string();
+            
             std::lock_guard<std::mutex> lock{ g_mutex };
-            ChangeApInfo(aps[mgmt.addr2().to_string()],
-                         tap,
-                         mgmt.rfind_pdu<Tins::Dot11Beacon>());
+            aps[key].Change(beacon, tap);
             break;
         }
         default:

@@ -11,11 +11,13 @@ set(SOURCE_FILES
     main.cpp
     driver.cpp
     cli.cpp
+    info.cpp
     )
 
 set(HEADER_FILES
     driver.hpp
     cli.hpp
+    info.hpp
     )
 
 add_executable(wireless_test ${SOURCE_FILES} ${HEADER_FILES})
