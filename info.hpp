@@ -11,7 +11,8 @@ class ApInfo {
 public:
     void Change(const Tins::Dot11Beacon& beacon,
                 const Tins::RadioTap& tap);
-    void Change(const Tins::Dot11Data& data);
+    void Change(const Tins::Dot11Data& data,
+                const Tins::RadioTap& tap);
     
     const auto bssid() const { return bssid_; }
     const auto power() const { return power_; }
@@ -26,7 +27,7 @@ public:
     const auto essid() const { return essid_; }
 private:
     std::string bssid_;
-    int power_;
+    int power_{ -1 };
     int beacons_{ 0 };
     int data_{ 0 };
     int per_second_{ 0 };
@@ -36,11 +37,19 @@ private:
     std::string cipher_;
     std::string auth_;
     std::string essid_;
+    
+    uint8_t mb_rate_;
+    char mb_qos_{ 'e' };
+    char mb_spa_{ ' ' };
 };
 
 class ConnectionInfo {
 public:
-    void Change(const Tins::Dot11AssocResponse& assoc_resp,
+    void Change(const Tins::Dot11ProbeResponse& probe_resp,
+                const Tins::RadioTap& tap);
+    void Change(const Tins::Dot11ProbeRequest& probe_req,
+                const Tins::RadioTap& tap);
+    void Change(const Tins::Dot11Data& data,
                 const Tins::RadioTap& tap);
 
     const auto bssid() const { return bssid_; }
@@ -53,15 +62,21 @@ public:
 private:
     std::string bssid_;
     std::string station_;
-    int power_;
+    int power_{ -1 };
     std::string rate_;
-    std::pair<std::string, std::string> rate_ex_{ "0", "0" };
     int lost_{ 0 };
     int frames_{ 0 };
     std::string probe_;
+    
+    std::pair<int, int> rate_num_{ 0, 0 };
+    int seq_last_{ 0 };
+    
+    void ChangeRadioFromStation(const Tins::RadioTap& tap);
+    void ChangeRadioFromAp(const Tins::RadioTap& tap);
+    void ChangeRadioAfter(const Tins::RadioTap& tap);
+    
+    void ChangeAddress(const Tins::Dot11::address_type& bssid,
+                       const Tins::Dot11::address_type& station);
 };
-
-using ConnectionInfoKey = std::pair<std::string, std::string>;
-
 
 #endif // INFO_HPP

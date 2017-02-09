@@ -21,7 +21,7 @@ std::mutex g_mutex;
 }
 
 static void PrintInfo(const std::map<std::string, ApInfo>& aps,
-                      const std::map<ConnectionInfoKey, ConnectionInfo>& connections,
+                      const std::map<std::string, ConnectionInfo>& connections,
                       std::atomic<bool>& stop) {
     using namespace std::literals::chrono_literals;
 
@@ -38,7 +38,7 @@ static void PrintInfo(const std::map<std::string, ApInfo>& aps,
         "  CH"
         // left
         "  MB  "
-        "  ENC "
+        "  ENC   "
         "  CIPHER"
         "  AUTH"
         "  ESSID"
@@ -61,7 +61,7 @@ static void PrintInfo(const std::map<std::string, ApInfo>& aps,
     cli::NextScreen();
     while (!stop) {
         msg << ap_row;
-        std::this_thread::sleep_for(50ms);
+        std::this_thread::sleep_for(5ms);
         {
             std::lock_guard<std::mutex> lock{ g_mutex };
             for (const auto& p : aps) {
@@ -76,7 +76,7 @@ static void PrintInfo(const std::map<std::string, ApInfo>& aps,
                     << "  " << std::setw(2)  << ap.channel()
                     << std::left
                     << "  " << std::setw(4)  << ap.mb()
-                    << "  " << std::setw(4)  << ap.enc()
+                    << "  " << std::setw(6)  << ap.enc()
                     << "  " << std::setw(6)  << ap.cipher()
                     << "  " << std::setw(4)  << ap.auth()
                     << "  " << ap.essid() << "\n";
@@ -84,7 +84,7 @@ static void PrintInfo(const std::map<std::string, ApInfo>& aps,
         }
 
         msg << connection_row;
-        std::this_thread::sleep_for(50ms);
+        std::this_thread::sleep_for(5ms);
         {
             std::lock_guard<std::mutex> lock{ g_mutex };
             for (const auto& p : connections) {
@@ -110,42 +110,43 @@ static void PrintInfo(const std::map<std::string, ApInfo>& aps,
 //     change -> true
 // not change -> false
 static bool UpdateInfo(std::map<std::string, ApInfo>& aps,
-                       std::map<ConnectionInfoKey, ConnectionInfo>& connections,
+                       std::map<std::string, ConnectionInfo>& connections,
                        const Tins::RadioTap& tap) {
     const auto& dot11 = tap.rfind_pdu<Tins::Dot11>();
     const auto type = dot11.type();
 
     if (Tins::Dot11::DATA == type) {
         const auto& data = dot11.rfind_pdu<Tins::Dot11Data>();
-        const auto key = data.addr1().to_string();
+        const auto bssid = data.addr1().to_string();
+        const auto station = data.addr2().to_string();
         
-        if (aps.find(key) == aps.end()) {
+        if (aps.find(bssid) == aps.end()) {
             return false;
         }
         std::lock_guard<std::mutex> lock{ g_mutex };
-        aps[key].Change(data);
+        aps[bssid].Change(data, tap);
+        connections[station].Change(data, tap);
     }
     else if (Tins::Dot11::MANAGEMENT == type) {
-        switch (dot11.subtype()) {
-        case Tins::Dot11::ASSOC_RESP: {
-            const auto& assoc_resp = dot11.rfind_pdu<Tins::Dot11AssocResponse>();
-            const ConnectionInfoKey key{ assoc_resp.addr2().to_string(),
-                                         assoc_resp.addr1().to_string() };
+        switch(dot11.subtype()) {
+        case Tins::Dot11::PROBE_REQ: {
+            const auto& probe_req = dot11.rfind_pdu<Tins::Dot11ProbeRequest>();
+            const std::string station = probe_req.addr2().to_string();
             
             std::lock_guard<std::mutex> lock{ g_mutex };
-            connections[key].Change(assoc_resp, tap);
+            connections[station].Change(probe_req, tap);
             break;
         }
         case Tins::Dot11::BEACON: {
             const auto& beacon = dot11.rfind_pdu<Tins::Dot11Beacon>();
-            const auto key = beacon.addr2().to_string();
+            const auto bssid = beacon.addr2().to_string();
             
             std::lock_guard<std::mutex> lock{ g_mutex };
-            aps[key].Change(beacon, tap);
+            aps[bssid].Change(beacon, tap);
             break;
         }
         default:
-            return false;
+            break;
         }
     }
     else {
@@ -157,11 +158,10 @@ static bool UpdateInfo(std::map<std::string, ApInfo>& aps,
 
 static void ReceiveInfo(const std::string interface,
                         std::map<std::string, ApInfo>& aps,
-                        std::map<ConnectionInfoKey, ConnectionInfo>& connections,
+                        std::map<std::string, ConnectionInfo>& connections,
                         std::atomic<bool>& stop) {
-    using namespace std::literals::chrono_literals;
-
     Tins::Sniffer sniffer{ interface };
+    
     while (!stop) {
         sniffer.sniff_loop([&aps, &connections](Tins::PDU& pdu) {
             try {
@@ -173,13 +173,12 @@ static void ReceiveInfo(const std::string interface,
                 return true;
             }
         });
-        std::this_thread::sleep_for(10ms);
     }
 }
 
 int Driver(const std::string interface) {
     std::map<std::string, ApInfo> aps;
-    std::map<ConnectionInfoKey, ConnectionInfo> connections;
+    std::map<std::string, ConnectionInfo> connections;
 
     std::atomic<bool> stop{ false };
     std::thread recive_thread{ ReceiveInfo,
