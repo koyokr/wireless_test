@@ -9,9 +9,9 @@
 
 class ApInfo {
 public:
-    void Change(const Tins::Dot11Beacon& beacon,
+    void Update(const Tins::Dot11Beacon& beacon,
                 const Tins::RadioTap& tap);
-    void Change(const Tins::Dot11Data& data,
+    void Update(const Tins::Dot11Data& data,
                 const Tins::RadioTap& tap);
     
     const auto bssid() const { return bssid_; }
@@ -45,11 +45,11 @@ private:
 
 class ConnectionInfo {
 public:
-    void Change(const Tins::Dot11ProbeResponse& probe_resp,
+    void Update(const Tins::Dot11ProbeRequest& probe_req,
                 const Tins::RadioTap& tap);
-    void Change(const Tins::Dot11ProbeRequest& probe_req,
+    void Update(const Tins::Dot11ProbeResponse& probe_resp,
                 const Tins::RadioTap& tap);
-    void Change(const Tins::Dot11Data& data,
+    void Update(const Tins::Dot11Data& data,
                 const Tins::RadioTap& tap);
 
     const auto bssid() const { return bssid_; }
@@ -71,11 +71,11 @@ private:
     std::pair<int, int> rate_num_{ 0, 0 };
     int seq_last_{ 0 };
     
-    void ChangeRadioFromStation(const Tins::RadioTap& tap);
-    void ChangeRadioFromAp(const Tins::RadioTap& tap);
-    void ChangeRadioAfter(const Tins::RadioTap& tap);
+    void UpdateRadioFromStation(const Tins::RadioTap& tap);
+    void UpdateRadioFromAp(const Tins::RadioTap& tap);
+    void UpdateRadioAfter(const Tins::RadioTap& tap);
     
-    void ChangeAddress(const Tins::Dot11::address_type& bssid,
+    void ApplyAddress(const Tins::Dot11::address_type& bssid,
                        const Tins::Dot11::address_type& station);
 };
 

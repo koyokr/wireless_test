@@ -107,49 +107,55 @@ static void PrintInfo(const std::map<std::string, ApInfo>& aps,
     }
 }
 
-//     change -> true
-// not change -> false
+//     update data -> true
+// not update data -> false
 static bool UpdateInfo(std::map<std::string, ApInfo>& aps,
                        std::map<std::string, ConnectionInfo>& connections,
                        const Tins::RadioTap& tap) {
-    const auto& dot11 = tap.rfind_pdu<Tins::Dot11>();
+    decltype(auto) dot11 = tap.rfind_pdu<Tins::Dot11>();
     const auto type = dot11.type();
 
     if (Tins::Dot11::DATA == type) {
-        const auto& data = dot11.rfind_pdu<Tins::Dot11Data>();
-        const auto bssid = data.addr1().to_string();
-        const auto station = data.addr2().to_string();
+        decltype(auto) data = dot11.rfind_pdu<Tins::Dot11Data>();
+        const auto bssid = data.addr1().to_string(); // destination
+        const auto station = data.addr2().to_string(); // source
         
         if (aps.find(bssid) == aps.end()) {
             return false;
         }
         std::lock_guard<std::mutex> lock{ g_mutex };
-        aps[bssid].Change(data, tap);
-        connections[station].Change(data, tap);
+        aps[bssid].Update(data, tap);
+        connections[station].Update(data, tap);
     }
     else if (Tins::Dot11::MANAGEMENT == type) {
-        switch(dot11.subtype()) {
-        case Tins::Dot11::PROBE_REQ: {
-            const auto& probe_req = dot11.rfind_pdu<Tins::Dot11ProbeRequest>();
-            const std::string station = probe_req.addr2().to_string();
+        const auto subtype = dot11.subtype();
+        
+        if (Tins::Dot11::PROBE_REQ == subtype) {
+            decltype(auto) probe_req = dot11.rfind_pdu<Tins::Dot11ProbeRequest>();
+            const std::string station = probe_req.addr2().to_string(); // destination
             
             std::lock_guard<std::mutex> lock{ g_mutex };
-            connections[station].Change(probe_req, tap);
-            break;
+            connections[station].Update(probe_req, tap);
         }
-        case Tins::Dot11::BEACON: {
-            const auto& beacon = dot11.rfind_pdu<Tins::Dot11Beacon>();
-            const auto bssid = beacon.addr2().to_string();
+        else if (Tins::Dot11::PROBE_RESP == subtype) {
+            decltype(auto) probe_resp = dot11.rfind_pdu<Tins::Dot11ProbeResponse>();
+            const std::string station = probe_resp.addr1().to_string(); // source
+            
+            if (connections.find(station) == connections.end()) {
+                return false;
+            }
+            std::lock_guard<std::mutex> lock{ g_mutex };
+            connections[station].Update(probe_resp, tap);
+        }
+        else if (Tins::Dot11::BEACON == subtype) {
+            decltype(auto) beacon = dot11.rfind_pdu<Tins::Dot11Beacon>();
+            const auto bssid = beacon.addr2().to_string(); // source
             
             std::lock_guard<std::mutex> lock{ g_mutex };
-            aps[bssid].Change(beacon, tap);
-            break;
-        }
-        default:
-            break;
+            aps[bssid].Update(beacon, tap);
         }
     }
-    else {
+    else { // Tins::Dot11::CONTROL == type
         return false;
     }
 
@@ -164,14 +170,9 @@ static void ReceiveInfo(const std::string interface,
     
     while (!stop) {
         sniffer.sniff_loop([&aps, &connections](Tins::PDU& pdu) {
-            try {
-                return !UpdateInfo(aps,
-                                   connections,
-                                   pdu.rfind_pdu<Tins::RadioTap>());
-            }
-            catch (Tins::option_not_found&) {
-                return true;
-            }
+            return !UpdateInfo(aps,
+                                connections,
+                                pdu.rfind_pdu<Tins::RadioTap>());
         });
     }
 }
