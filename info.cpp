@@ -1,5 +1,6 @@
 #include <string>
 #include <algorithm>
+#include <chrono>
 
 #include <tins/radiotap.h>
 #include <tins/dot11.h>
@@ -46,14 +47,14 @@ static std::string ToStringFromRSN(const Tins::RSNInformation::akm_type& akms) {
     std::string str;
     if (!akms.empty()) {
         switch (akms.front()) {
-            case Tins::RSNInformation::PMKSA:
-                str = "MGT";
-                break;
-            case Tins::RSNInformation::PSK:
-                str = "PSK";
-                break;
-            default:
-                break;
+        case Tins::RSNInformation::PMKSA:
+            str = "MGT";
+            break;
+        case Tins::RSNInformation::PSK:
+            str = "PSK";
+            break;
+        default:
+            break;
         }
     }
     return str;
@@ -72,7 +73,7 @@ enum AKMSuites {
         PSK   = 0x02f25000
 };
 }
-static std::string ToStringFromUCS(const uint32_t ucs) {
+static std::string ToStringFromWPAUCS(const uint32_t ucs) {
     std::string str;
     switch (ucs) {
     case WPAInformation::WEP_40:
@@ -95,7 +96,7 @@ static std::string ToStringFromUCS(const uint32_t ucs) {
     }
     return str;
 }
-static std::string ToStringFromAKM(const uint32_t akm) {
+static std::string ToStringFromWPAAKM(const uint32_t akm) {
     std::string str;
     switch (akm) {
     case WPAInformation::PMKSA:
@@ -150,13 +151,13 @@ void ApInfo::Update(const Tins::Dot11Beacon& beacon,
                                                    oui.begin(), oui.end());
                 const auto ucs_end = ucs_begin + kOuiSize * ucs_count;
                 if (ucs_begin != raw.end()) {
-                    cipher_ = ToStringFromUCS(FromIter<uint32_t>(ucs_begin));
+                    cipher_ = ToStringFromWPAUCS(FromIter<uint32_t>(ucs_begin));
                 }
                 
                 const auto akm_begin = std::search(ucs_end, raw.end(),
                                                    oui.begin(), oui.end());
                 if (akm_begin != raw.end()) {
-                    auth_ = ToStringFromAKM(FromIter<uint32_t>(akm_begin));
+                    auth_ = ToStringFromWPAAKM(FromIter<uint32_t>(akm_begin));
                 }
             }
             else { // not found wpa information
@@ -185,27 +186,41 @@ void ApInfo::Update(const Tins::Dot11Beacon& beacon,
     mb_ = std::to_string(mb_rate) + std::string{ mb_qos } + std::string{ mb_spa };
 }
 
+namespace {
+    int g_time_point;
+}
+
 void ApInfo::Update(const Tins::Dot11Data& data,
                     const Tins::RadioTap& tap) {
     ++data_;
+    ++data_latest_;
     power_ = tap.dbm_signal();
     
-    per_second_;
+    constexpr int kTime = 10;
+    auto now = std::chrono::steady_clock::now().time_since_epoch().count();
+    if (!g_time_point || now - g_time_point > kTime) {
+        data_latest_ = 0;
+        g_time_point = now;
+    }
+    per_second_ = data_latest_ / kTime;
 }
 
 void ConnectionInfo::Update(const Tins::Dot11ProbeRequest& probe_req,
                             const Tins::RadioTap& tap) {
     ++frames_;
     ApplyAddress(probe_req.addr1(), probe_req.addr2());
-    UpdateRadioFromStation(tap);
+    UpdateRateFromStation(tap);
+    
+    power_ = tap.dbm_signal();
 }
 
 void ConnectionInfo::Update(const Tins::Dot11ProbeResponse& probe_resp,
                             const Tins::RadioTap& tap) {
     ++frames_;
     ApplyAddress(probe_resp.addr2(), probe_resp.addr1());
-    UpdateRadioFromAp(tap);
+    UpdateRateFromAp(tap);
     
+    power_ = tap.dbm_signal();
     if (probe_.empty()) {
         probe_ = probe_resp.ssid();
     }
@@ -215,12 +230,13 @@ void ConnectionInfo::Update(const Tins::Dot11Data& data,
                             const Tins::RadioTap& tap) {
     ++frames_;
     ApplyAddress(data.addr1(), data.addr2());
-    UpdateRadioFromStation(tap);
+    UpdateRateFromStation(tap);
     
+    power_ = tap.dbm_signal();
     auto seq = data.seq_num();
-    if (seq_last_ != 0) {
+    if (seq_last_) {
         auto diff = seq - seq_last_ - 1;
-        if(diff > 0) {
+        if(0 < diff && diff < 1000) {
             lost_ += diff;
         }
     }
@@ -245,23 +261,26 @@ void ConnectionInfo::ApplyAddress(const Tins::Dot11::address_type& bssid,
     }
 }
 
-void ConnectionInfo::UpdateRadioFromStation(const Tins::RadioTap& tap) {
+void ConnectionInfo::UpdateRateFromStation(const Tins::RadioTap& tap) {
     try {
-        rate_num_.second = tap.rate();
+        rate_number_.second = tap.rate();
     }
-    catch (Tins::field_not_present&) {}
-    UpdateRadioAfter(tap);
+    catch (Tins::field_not_present&) {
+        return;
+    }
+    UpdateRateString();
 }
 
-void ConnectionInfo::UpdateRadioFromAp(const Tins::RadioTap& tap) {
+void ConnectionInfo::UpdateRateFromAp(const Tins::RadioTap& tap) {
     try {
-        rate_num_.first = tap.rate();
+        rate_number_.first = tap.rate();
     }
-    catch (Tins::field_not_present&) {}
-    UpdateRadioAfter(tap);
+    catch (Tins::field_not_present&) {
+        return;
+    }
+    UpdateRateString();
 }
 
-void ConnectionInfo::UpdateRadioAfter(const Tins::RadioTap& tap) {
-    power_ = tap.dbm_signal();
-    rate_ = std::to_string(rate_num_.first) + "-" + std::to_string(rate_num_.second);
+void ConnectionInfo::UpdateRateString() {
+    rate_ = std::to_string(rate_number_.first) + "-" + std::to_string(rate_number_.second);
 }

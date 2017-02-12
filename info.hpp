@@ -31,16 +31,14 @@ private:
     int beacons_{ 0 };
     int data_{ 0 };
     int per_second_{ 0 };
-    int channel_;
+    int channel_{ -1 };
     std::string mb_{ "-1" };
     std::string enc_;
     std::string cipher_;
     std::string auth_;
     std::string essid_;
     
-    uint8_t mb_rate_;
-    char mb_qos_{ 'e' };
-    char mb_spa_{ ' ' };
+    int data_latest_{ 0 };
 };
 
 class ConnectionInfo {
@@ -68,12 +66,12 @@ private:
     int frames_{ 0 };
     std::string probe_;
     
-    std::pair<int, int> rate_num_{ 0, 0 };
+    std::pair<int, int> rate_number_{ 0, 0 };
     int seq_last_{ 0 };
     
-    void UpdateRadioFromStation(const Tins::RadioTap& tap);
-    void UpdateRadioFromAp(const Tins::RadioTap& tap);
-    void UpdateRadioAfter(const Tins::RadioTap& tap);
+    void UpdateRateFromStation(const Tins::RadioTap& tap);
+    void UpdateRateFromAp(const Tins::RadioTap& tap);
+    void UpdateRateString();
     
     void ApplyAddress(const Tins::Dot11::address_type& bssid,
                        const Tins::Dot11::address_type& station);

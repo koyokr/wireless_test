@@ -171,8 +171,8 @@ static void ReceiveInfo(const std::string interface,
     while (!stop) {
         sniffer.sniff_loop([&aps, &connections](Tins::PDU& pdu) {
             return !UpdateInfo(aps,
-                                connections,
-                                pdu.rfind_pdu<Tins::RadioTap>());
+                               connections,
+                               pdu.rfind_pdu<Tins::RadioTap>());
         });
     }
 }
