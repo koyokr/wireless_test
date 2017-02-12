@@ -5,25 +5,28 @@
 #include "cli.hpp"
 
 namespace cli {
-static void ClearCurEnd() { std::cout << "\E[0J"; }
-static void ClearCurBeg() { std::cout << "\E[1J"; }
-static void ClearBegEnd() { std::cout << "\E[2J"; }
-static void MoveCurBeg() { std::cout << "\E[f"; }
+static std::string ClearCurEnd() { return "\E[0J"; }
+static std::string ClearCurBeg() { return "\E[1J"; }
+static std::string ClearBegEnd() { return "\E[2J"; }
+static std::string  MoveCurBeg() { return "\E[f"; }
 
 void NextScreen() {
-    ClearBegEnd();
-    MoveCurBeg();
-    std::cout << std::flush;
+    std::cout << ClearBegEnd()
+              << MoveCurBeg()
+              << std::flush;
 }
 
-static void Clear() { ClearCurBeg(); MoveCurBeg(); }
+static std::string Clear() {
+    return ClearCurBeg() + MoveCurBeg();
+}
 
 void Update(const std::string& msg) {
-    Clear();
-    std::cout << msg << std::flush;
+    std::cout << Clear()
+              << msg
+              << std::flush;
 }
 void Update(const std::vector<std::string>& msgs) {
-    Clear();
+    std::cout << Clear();
     for (const auto& msg : msgs) {
         std::cout << msg << '\n';
     }
