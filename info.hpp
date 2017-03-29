@@ -9,22 +9,22 @@
 
 class ApInfo {
 public:
-    void Update(const Tins::Dot11Beacon& beacon,
-                const Tins::RadioTap& tap);
-    void Update(const Tins::Dot11Data& data,
-                const Tins::RadioTap& tap);
+    void Update(Tins::Dot11Beacon const& beacon,
+                Tins::RadioTap const& tap);
+    void Update(Tins::Dot11Data const& data,
+                Tins::RadioTap const& tap);
     
-    const auto bssid() const { return bssid_; }
-    const auto power() const { return power_; }
-    const auto beacons() const { return beacons_; }
-    const auto data() const { return data_; }
-    const auto per_second() const { return per_second_; }
-    const auto channel() const { return channel_; }
-    const auto mb() const { return mb_; }
-    const auto enc() const { return enc_; }
-    const auto cipher() const { return cipher_; }
-    const auto auth() const { return auth_; }
-    const auto essid() const { return essid_; }
+    auto const bssid() const { return bssid_; }
+    auto const power() const { return power_; }
+    auto const beacons() const { return beacons_; }
+    auto const data() const { return data_; }
+    auto const per_second() const { return per_second_; }
+    auto const channel() const { return channel_; }
+    auto const mb() const { return mb_; }
+    auto const enc() const { return enc_; }
+    auto const cipher() const { return cipher_; }
+    auto const auth() const { return auth_; }
+    auto const essid() const { return essid_; }
 private:
     std::string bssid_;
     int power_{ -1 };
@@ -43,20 +43,20 @@ private:
 
 class ConnectionInfo {
 public:
-    void Update(const Tins::Dot11ProbeRequest& probe_req,
-                const Tins::RadioTap& tap);
-    void Update(const Tins::Dot11ProbeResponse& probe_resp,
-                const Tins::RadioTap& tap);
-    void Update(const Tins::Dot11Data& data,
-                const Tins::RadioTap& tap);
+    void Update(Tins::Dot11ProbeRequest const& probe_req,
+                Tins::RadioTap const& tap);
+    void Update(Tins::Dot11ProbeResponse const& probe_resp,
+                Tins::RadioTap const& tap);
+    void Update(Tins::Dot11Data const& data,
+                Tins::RadioTap const& tap);
 
-    const auto bssid() const { return bssid_; }
-    const auto station() const { return station_; }
-    const auto power() const { return power_; }
-    const auto rate() const { return rate_; }
-    const auto lost() const { return lost_; }
-    const auto frames() const { return frames_; }
-    const auto probe() const { return probe_; }
+    auto const bssid() const { return bssid_; }
+    auto const station() const { return station_; }
+    auto const power() const { return power_; }
+    auto const rate() const { return rate_; }
+    auto const lost() const { return lost_; }
+    auto const frames() const { return frames_; }
+    auto const probe() const { return probe_; }
 private:
     std::string bssid_;
     std::string station_;
@@ -69,12 +69,12 @@ private:
     std::pair<int, int> rate_number_{ 0, 0 };
     int seq_last_{ 0 };
     
-    void UpdateRateFromStation(const Tins::RadioTap& tap);
-    void UpdateRateFromAp(const Tins::RadioTap& tap);
+    void UpdateRateFromStation(Tins::RadioTap const& tap);
+    void UpdateRateFromAp(Tins::RadioTap const& tap);
     void UpdateRateString();
     
-    void ApplyAddress(const Tins::Dot11::address_type& bssid,
-                       const Tins::Dot11::address_type& station);
+    void ApplyAddress(Tins::Dot11::address_type const& bssid,
+                      Tins::Dot11::address_type const& station);
 };
 
 #endif // INFO_HPP

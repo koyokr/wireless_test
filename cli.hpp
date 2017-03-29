@@ -6,8 +6,8 @@
 
 namespace cli {
 void NextScreen();
-void Update(const std::string& msg);
-void Update(const std::vector<std::string>& msgs);
+void Update(std::string const& msg);
+void Update(std::vector<std::string> const& msgs);
 } // namespace cli
 
 #endif // CLI_HPP

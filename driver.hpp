@@ -3,6 +3,6 @@
 
 #include <string>
 
-int Driver(const std::string interface);
+int Driver(std::string const interface);
 
 #endif // DRIVER_HPP
